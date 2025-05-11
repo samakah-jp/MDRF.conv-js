@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MDRF Converter Sample</title>
+    <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+    <script src="mdrf-converter.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        textarea, pre {
+            width: 95%;
+            min-height: 150px;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            font-family: monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        button {
+            padding: 10px 15px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+        h2 { margin-top: 30px; }
+        .container { display: flex; flex-wrap: wrap; gap: 20px; }
+        .column { flex: 1; min-width: 300px; }
+        .options { margin-bottom: 20px; }
+        .options label { margin-right: 15px; }
+    </style>
+</head>
+<body>
+
+<h1>MDRF v3.0 Converter Sample</h1>
+
+<div class="options">
+    <label for="autoNumberingCheckbox">
+        <input type="checkbox" id="autoNumberingCheckbox"> 自動採番を有効にする (MDRF生成時)
+    </label>
+</div>
+
+<div class="container">
+    <div class="column">
+        <h2>MDRF Input / Output</h2>
+        <textarea id="mdrfInputArea" placeholder="ここにMDRF v3.0のコンテンツを入力..."></textarea>
+        <button id="parseToYamlButton">MDRF → YAML に変換</button>
+    </div>
+    <div class="column">
+        <h2>YAML Output / Input</h2>
+        <textarea id="yamlOutputArea" placeholder="YAMLの出力結果、またはMDRFに変換するYAMLを入力..."></textarea>
+        <button id="generateFromYamlButton">YAML → MDRF に変換</button>
+    </div>
+</div>
+
+<h2>双方向変換デモ (Roundtrip)</h2>
+<button id="roundtripDemoButton">1. サンプルMDRFをロード → 2. YAMLに変換 → 3. MDRFに再生成</button>
+<div>
+    <h3>元のMDRF (サンプル)</h3>
+    <pre id="originalMdrfDisplay"></pre>
+    <h3>変換後のYAML</h3>
+    <pre id="intermediateYamlDisplay"></pre>
+    <h3>再生成されたMDRF</h3>
+    <pre id="regeneratedMdrfDisplay"></pre>
+</div>
+
+
+<script>
+    // --- Sample MDRF v3.0 Content (HTMLファイル内に残す) ---
+    const sampleMdrfContent = `# API Refactoring Review
+---
+mdrf_version: 3.0
+project: SampleProject API
+review_date: "2025-05-05"
+participants:
+  - reviewer@example.com
+  - developer@example.com
+---
+
+## Version: f0e9d8c7b6a5
+\`\`\`yaml
+group_metadata:
+  group_type: version
+  author: 'Developer <developer@example.com>'
+  timestamp: 2025-05-04T18:00:00+09:00
+  related_issue: "#101"
+  description: "Refactored service layer and updated documentation."
+\`\`\`
+
+### src/services/ApiService.java
+\`\`\`yaml
+metadata:
+  file_path: src/services/ApiService.java
+  change_type: modified
+\`\`\`
+**Diff:**
+\`\`\`diff
+--- a/src/services/ApiService.java
++++ b/src/services/ApiService.java
+@@ -10,11 +10,12 @@
+     private DataRepository repository;
+
+     public ResponseData processRequest(RequestData request) {
+-        // Basic validation
++        // Input validation (moved to RequestData validator)
+         if (request == null || request.getId() == null) {
+             throw new IllegalArgumentException("Invalid request data.");
+         }
+
++        log.info("Processing request for ID: {}", request.getId()); // Added logging
+         Optional<DataObject> data = repository.findById(request.getId());
+
+         return data.map(this::createSuccessResponse)
+\`\`\`
+
+#### Thread 1 on Line 14
+\`\`\`yaml
+thread_meta:
+  status: open
+  type: question
+  context_snippet: |
+          // Input validation (moved to RequestData validator)
+          if (request == null || request.getId() == null) {
+              throw new IllegalArgumentException("Invalid request data.");
+          }
+  severity: medium
+\`\`\`
+
+##### [1.1] reviewer@example.com (2025-05-05T10:15:30+09:00)
+入力バリデーションが \`RequestData\` 側に移動したとのことですが、具体的にどのようなバリデーションが行われていますか？ JSR 380 (Bean Validation) を使っていますか？
+
+##### [1.2] developer@example.com (2025-05-05T10:30:00+09:00)
+:reply_to[1.1]
+はい、\`RequestData\` クラスに \`@NotNull\` などのBean Validationアノテーションを追加しました。Controller層で \`@Valid\` を使って検証しています。
+
+#### Thread 2 on Line 18
+\`\`\`yaml
+thread_meta:
+  status: addressed
+  type: suggestion
+\`\`\`
+##### reviewer@example.com (2025-05-05T10:17:00+09:00)
+ログが追加されたのは良いですね！
+
+### docs/api_guide.md (Renamed)
+\`\`\`yaml
+metadata:
+  file_path: docs/api_guide.md
+  change_type: renamed
+  old_path: docs/API_GUIDE.md
+\`\`\`
+**Diff:**
+\`\`\`diff
+--- a/docs/API_GUIDE.md
++++ b/docs/api_guide.md
+@@ -1,5 +1,5 @@
+-# API Guide
++# API Guide (v2)
+\`\`\`
+
+#### Thread 1 on Line 1
+\`\`\`yaml
+thread_meta:
+  status: resolved
+  type: nitpick
+\`\`\`
+##### [1.1] reviewer@example.com (2025-05-05T10:20:00+09:00)
+ファイル名が小文字になり、タイトルにバージョンが入ったのですね。了解です。
+`;
+
+    // --- DOM Elements ---
+    const mdrfInputArea = document.getElementById('mdrfInputArea');
+    const yamlOutputArea = document.getElementById('yamlOutputArea');
+    const parseToYamlButton = document.getElementById('parseToYamlButton');
+    const generateFromYamlButton = document.getElementById('generateFromYamlButton');
+    const roundtripDemoButton = document.getElementById('roundtripDemoButton');
+    const originalMdrfDisplay = document.getElementById('originalMdrfDisplay');
+    const intermediateYamlDisplay = document.getElementById('intermediateYamlDisplay');
+    const regeneratedMdrfDisplay = document.getElementById('regeneratedMdrfDisplay');
+    const autoNumberingCheckbox = document.getElementById('autoNumberingCheckbox');
+
+    // MdrfConverterクラスはmdrf-converter.jsから読み込まれる
+    const converter = new MdrfConverter(); // Default options
+
+    // --- Event Listeners (HTMLファイル内に残す) ---
+    parseToYamlButton.addEventListener('click', () => {
+        try {
+            const mdrfInput = mdrfInputArea.value;
+            if (!mdrfInput.trim()) { alert("MDRF入力エリアが空です。"); return; }
+            const yamlOutput = converter.parseToYaml(mdrfInput);
+            yamlOutputArea.value = yamlOutput;
+            console.log("MDRF -> YAML 変換成功");
+        } catch (error) {
+            yamlOutputArea.value = `エラー:\n${error.message}\n\n${error.stack || ''}`;
+            console.error("MDRF -> YAML 変換エラー:", error);
+        }
+    });
+
+    generateFromYamlButton.addEventListener('click', () => {
+        try {
+            const yamlInput = yamlOutputArea.value;
+            if (!yamlInput.trim()) { alert("YAML入力エリアが空です。"); return; }
+            const generationOptions = { autoNumbering: autoNumberingCheckbox.checked };
+            const mdrfOutput = converter.generateFromYaml(yamlInput, generationOptions);
+            mdrfInputArea.value = mdrfOutput;
+            console.log("YAML -> MDRF 変換成功", generationOptions);
+        } catch (error) {
+            mdrfInputArea.value = `エラー:\n${error.message}\n\n${error.stack || ''}`;
+            console.error("YAML -> MDRF 変換エラー:", error);
+        }
+    });
+
+    roundtripDemoButton.addEventListener('click', () => {
+        mdrfInputArea.value = sampleMdrfContent;
+        originalMdrfDisplay.textContent = sampleMdrfContent;
+        intermediateYamlDisplay.textContent = '変換中...';
+        regeneratedMdrfDisplay.textContent = '変換中...';
+        
+        const generationOptions = { autoNumbering: autoNumberingCheckbox.checked };
+        console.log("Roundtrip demo using options:", generationOptions);
+
+        try {
+            const yamlResult = converter.parseToYaml(sampleMdrfContent);
+            yamlOutputArea.value = yamlResult;
+            intermediateYamlDisplay.textContent = yamlResult;
+            console.log("Roundtrip: MDRF -> YAML 成功");
+
+            const regeneratedMdrf = converter.generateFromYaml(yamlResult, generationOptions);
+            regeneratedMdrfDisplay.textContent = regeneratedMdrf;
+            console.log("Roundtrip: YAML -> MDRF 成功");
+
+            if (!generationOptions.autoNumbering && sampleMdrfContent.trim() === regeneratedMdrf.trim()) {
+                console.log("Roundtrip: 元のMDRFと再生成されたMDRFは一致しました (自動採番なし)。");
+            } else if (generationOptions.autoNumbering) {
+                console.log("Roundtrip: 自動採番が有効なため、文字列の完全一致比較はスキップします。目視で確認してください。");
+            }
+             else {
+                console.warn("Roundtrip: 元のMDRFと再生成されたMDRFが異なります (自動採番なし)。");
+            }
+
+        } catch (error) {
+            intermediateYamlDisplay.textContent = `エラー:\n${error.message}`;
+            regeneratedMdrfDisplay.textContent = `エラー:\n${error.message}`;
+            console.error("Roundtrip デモエラー:", error);
+        }
+    });
+
+    // 初期表示用にサンプルMDRFをMDRF入力エリアにセット
+    mdrfInputArea.value = sampleMdrfContent;
+    originalMdrfDisplay.textContent = sampleMdrfContent;
+</script>
+
+</body>
+</html>
